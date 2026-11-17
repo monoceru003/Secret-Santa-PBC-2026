@@ -13,6 +13,104 @@ st.set_page_config(
     layout="centered"
 )
 
+# --- STYLING & HIASAN TEMA NATAL (CSS) ---
+st.markdown("""
+<style>
+    /* Latar belakang bernuansa hangat & lembut */
+    .stApp {
+        background: linear-gradient(180deg, #FFFDF9 0%, #F7F2EA 100%);
+    }
+
+    /* Animasi Salju Halus (Pointer-events: none agar tidak menghalangi klik) */
+    @keyframes snowfall {
+        0% { transform: translateY(-10vh) rotate(0deg); opacity: 0.85; }
+        100% { transform: translateY(105vh) rotate(360deg); opacity: 0.2; }
+    }
+    .snowflake {
+        position: fixed;
+        top: -5%;
+        color: #D4AF37;
+        font-size: 1.1rem;
+        user-select: none;
+        pointer-events: none;
+        z-index: 9999;
+        animation: snowfall linear infinite;
+    }
+
+    /* Banner Header Natal */
+    .christmas-banner {
+        background: linear-gradient(135deg, #9B1B1E 0%, #165B33 100%);
+        padding: 26px 20px;
+        border-radius: 16px;
+        text-align: center;
+        color: #FFFFFF;
+        box-shadow: 0 8px 20px rgba(155, 27, 30, 0.18);
+        border: 2px solid #D4AF37;
+        margin-bottom: 18px;
+    }
+    .christmas-banner h1 {
+        color: #FFFFFF !important;
+        font-size: 1.85rem !important;
+        margin: 6px 0 !important;
+        text-shadow: 1px 2px 4px rgba(0,0,0,0.3);
+        letter-spacing: 0.5px;
+    }
+    .christmas-ornaments {
+        font-size: 1.4rem;
+        letter-spacing: 8px;
+    }
+
+    /* Kartu Ketentuan Budget */
+    .budget-card {
+        background-color: #FFFFFF;
+        border-left: 5px solid #D42426;
+        border-right: 5px solid #165B33;
+        border-top: 1px solid #E8DFD1;
+        border-bottom: 1px solid #E8DFD1;
+        padding: 14px 18px;
+        border-radius: 12px;
+        text-align: center;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.04);
+        margin-bottom: 22px;
+        font-size: 1.02rem;
+        color: #2C2C2C;
+    }
+
+    /* Kartu Hasil Undian Giftee */
+    .giftee-card {
+        background: linear-gradient(135deg, #FFFDF7 0%, #FFF5E4 100%);
+        border: 2px solid #D4AF37;
+        border-radius: 16px;
+        padding: 22px;
+        margin: 15px 0;
+        box-shadow: 0 6px 18px rgba(212, 175, 55, 0.2);
+    }
+
+    /* Tombol Utama Merah Natal */
+    div.stButton > button[kind="primary"] {
+        background: linear-gradient(135deg, #C82327 0%, #9B1B1E 100%) !important;
+        border: 1px solid #D4AF37 !important;
+        color: #FFFFFF !important;
+        font-weight: 600 !important;
+        border-radius: 10px !important;
+        box-shadow: 0 4px 10px rgba(155, 27, 30, 0.2) !important;
+        transition: transform 0.15s ease !important;
+    }
+    div.stButton > button[kind="primary"]:hover {
+        transform: translateY(-1px) !important;
+        box-shadow: 0 6px 14px rgba(155, 27, 30, 0.3) !important;
+    }
+</style>
+
+<!-- Hiasan Salju & Kilau Emas Halus -->
+<div class="snowflake" style="left: 8%; animation-duration: 11s; animation-delay: 0s;">❄️</div>
+<div class="snowflake" style="left: 22%; animation-duration: 14s; animation-delay: 2s;">✨</div>
+<div class="snowflake" style="left: 38%; animation-duration: 10s; animation-delay: 4s;">❄️</div>
+<div class="snowflake" style="left: 55%; animation-duration: 13s; animation-delay: 1s;">✨</div>
+<div class="snowflake" style="left: 72%; animation-duration: 12s; animation-delay: 3s;">❄️</div>
+<div class="snowflake" style="left: 88%; animation-duration: 15s; animation-delay: 5s;">✨</div>
+""", unsafe_allow_html=True)
+
 # --- KONEKSI GOOGLE SHEETS ---
 @st.cache_resource
 def init_connection():
@@ -264,9 +362,17 @@ event_title = config.get("EVENT_TITLE", "Christmas Lunch Secret Santa")
 budget_info = config.get("BUDGET_INFO", "Rp 100.000")
 fase = config.get("FASE", "1")
 
-# --- HEADER UTAMA ---
-st.title(f"🎄 {event_title}", anchor=False)
-st.info(f"🎁 **Ketentuan Budget Hadiah:** {budget_info}")
+# --- HEADER UTAMA BERHIAS NATAL ---
+st.markdown(f"""
+<div class="christmas-banner">
+    <div class="christmas-ornaments">✨ 🎅 🎄 🦌 ✨</div>
+    <h1>{event_title}</h1>
+    <div style="font-size: 0.92rem; opacity: 0.92; margin-top: 4px;">Secret Santa Gift Exchange</div>
+</div>
+<div class="budget-card">
+    🎁 <strong>Ketentuan Budget Hadiah:</strong> {budget_info}
+</div>
+""", unsafe_allow_html=True)
 
 # ==========================================
 # MODE ADMIN (KHUSUS ANDRE & REGINE)
@@ -394,7 +500,7 @@ if fase == "1":
         curr_user = st.session_state.selected_user
         user_row = df[df["NAMA"] == curr_user].iloc[0]
         
-        st.markdown(f"### Halo, **{curr_user}**! 👋")
+        st.markdown(f"### Halo, **{curr_user}**! 🎅")
         
         if is_true(user_row["WISHLIST_LOCKED"]):
             st.warning(
@@ -430,11 +536,9 @@ if fase == "1":
 elif fase == "2":
     st.subheader("🎲 Tahap 2: Undian Secret Santa", anchor=False)
     
-    # Jika baru saja menekan konfirmasi spin & sedang proses/tampil hasil 1x
     if st.session_state.spin_confirmed_user is not None:
         spinner = st.session_state.spin_confirmed_user
         
-        # Cek kandidat untuk visual roda sebelum dieksekusi
         taken_giftees = set(df[df["GIFTEE"] != ""]["GIFTEE"].tolist())
         candidates = [n for n in df["NAMA"].tolist() if n not in taken_giftees and n != spinner]
         
@@ -456,8 +560,17 @@ elif fase == "2":
             st.balloons()
             giftee_data = df[df["NAMA"] == giftee_name].iloc[0]
             
-            st.success(f"### Ho Ho Ho! Kamu adalah Secret Santa untuk:")
-            st.markdown(f"# 🎁 Giftee-mu: **{giftee_name}**")
+            st.markdown(f"""
+            <div class="giftee-card">
+                <div style="text-align:center; font-size:1.1rem; color:#165B33; font-weight:bold;">
+                    🎅 Ho Ho Ho! Kamu adalah Secret Santa untuk:
+                </div>
+                <div style="text-align:center; font-size:2rem; font-weight:800; color:#9B1B1E; margin:10px 0;">
+                    🎁 {giftee_name}
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+            
             st.markdown(f"**🔗 Link Wishlist:** {giftee_data['WISHLIST_LINK']}")
             if giftee_data['CATATAN']:
                 st.markdown(f"**📝 Catatan:** {giftee_data['CATATAN']}")
@@ -469,7 +582,6 @@ elif fase == "2":
                 st.session_state.selected_user = None
                 st.rerun()
                 
-    # Tampilan Pemilihan Nama Fase 2
     else:
         options = ["-- Pilih Namamu --"]
         name_map = {}
@@ -496,6 +608,7 @@ elif fase == "2":
 
 # --- FOOTER AKSES KHUSUS ADMIN ---
 st.divider()
+st.markdown("<div style='text-align:center; color:#8C7F70; font-size:0.85rem;'>🎄 Merry Christmas & Happy Gift Hunting! 🎁</div>", unsafe_allow_html=True)
 col_empty, col_adm = st.columns([4, 1])
 with col_adm:
     if st.button("⚙️ Admin", type="tertiary"):
