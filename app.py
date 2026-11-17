@@ -32,6 +32,7 @@ def get_sheets():
     sh = client.open_by_url(st.secrets["sheet_url"])
     return sh.worksheet("PESERTA"), sh.worksheet("CONFIG")
 
+@st.cache_data(ttl=15)
 def load_data():
     ws_peserta, ws_config = get_sheets()
     
@@ -64,8 +65,10 @@ def save_wishlist(nama, link, catatan):
         ws_peserta.update_cell(row, 2, link)
         ws_peserta.update_cell(row, 3, catatan)
         ws_peserta.update_cell(row, 4, "TRUE")
+    load_data.clear()
 
 def execute_spin(spinner_nama):
+    load_data.clear()
     ws_peserta, _ = get_sheets()
     df, _ = load_data()
     
@@ -90,7 +93,6 @@ def execute_spin(spinner_nama):
     
     if len(remaining_unspun) == 1:
         last_player = remaining_unspun[0]
-        # Jika pemain terakhir belum punya yang ngambil, dia WAJIB dipilih sekarang agar tidak tersisa untuk dirinya sendiri
         if last_player in available_targets:
             chosen_giftee = last_player
         else:
@@ -104,12 +106,12 @@ def execute_spin(spinner_nama):
         row = cell.row
         ws_peserta.update_cell(row, 5, "TRUE")
         ws_peserta.update_cell(row, 6, chosen_giftee)
+    load_data.clear()
         
     return chosen_giftee, "OK"
 
 # --- TRIK VISUAL RODA ROULETTE (HTML/CSS/JS) ---
 def render_roulette_wheel(candidates, winner, spin_duration=4.5):
-    # Visual Padding: Selalu buat 8 potongan roda agar tetap seru meski sisa sedikit
     slices = []
     if len(candidates) == 1:
         slices = [winner, "🎁 MYSTERY", winner, "🎄 SECRET", winner, "🎅 SANTA", winner, "✨ GIFT"]
@@ -123,13 +125,11 @@ def render_roulette_wheel(candidates, winner, spin_duration=4.5):
         if winner not in slices:
             slices[0] = winner
 
-    # Pastikan pemenang ada di index tertentu untuk target sudut berhenti
     winner_indices = [i for i, x in enumerate(slices) if x == winner]
     target_idx = random.choice(winner_indices)
     
     num_slices = len(slices)
     arc = 360 / num_slices
-    # Hitung sudut putaran agar jarum di atas (270 deg) berhenti tepat di tengah slice pemenang
     stop_angle = (360 * 6) + (270 - (target_idx * arc + arc / 2)) % 360
 
     colors = ["#D42426", "#165B33", "#BB2528", "#146B3A", "#EA4630", "#1E792C", "#C54B3C", "#0F5132"]
@@ -177,7 +177,6 @@ def render_roulette_wheel(candidates, winner, spin_duration=4.5):
         }}
         drawWheel();
 
-        // Mulai animasi putar
         setTimeout(() => {{
             canvas.style.transition = "transform {spin_duration}s cubic-bezier(0.15, 0.85, 0.25, 1)";
             canvas.style.transform = "rotate({stop_angle}deg)";
@@ -274,10 +273,16 @@ st.info(f"🎁 **Ketentuan Budget Hadiah:** {budget_info}")
 # ==========================================
 if st.session_state.admin_logged_in:
     st.subheader("⚙️ Panel Kontrol (Andre & Regine)")
-    if st.button("⬅ Keluar dari Mode Admin"):
-        st.session_state.admin_logged_in = False
-        st.session_state.show_admin_login = False
-        st.rerun()
+    col_top1, col_top2 = st.columns(2)
+    with col_top1:
+        if st.button("⬅ Keluar dari Mode Admin", use_container_width=True):
+            st.session_state.admin_logged_in = False
+            st.session_state.show_admin_login = False
+            st.rerun()
+    with col_top2:
+        if st.button("🔄 Refresh Data Terbaru", use_container_width=True):
+            load_data.clear()
+            st.rerun()
         
     st.divider()
     
@@ -290,6 +295,7 @@ if st.session_state.admin_logged_in:
             cell = ws_config.find("FASE", in_column=1)
             if cell:
                 ws_config.update_cell(cell.row, 2, "1")
+            load_data.clear()
             st.rerun()
     with col_f2:
         if st.button("🎲 Set Fase 2: Buka Roulette", type="primary" if fase == "2" else "secondary", use_container_width=True):
@@ -297,6 +303,7 @@ if st.session_state.admin_logged_in:
             cell = ws_config.find("FASE", in_column=1)
             if cell:
                 ws_config.update_cell(cell.row, 2, "2")
+            load_data.clear()
             st.rerun()
     st.caption(f"Status saat ini: **Fase {fase}** ({'Pengisian Wishlist' if fase == '1' else 'Roulette Undian'})")
 
@@ -321,6 +328,7 @@ if st.session_state.admin_logged_in:
                 ws_peserta.update_cell(cell.row, 2, new_link)
                 ws_peserta.update_cell(cell.row, 3, new_catatan)
                 ws_peserta.update_cell(cell.row, 4, "TRUE" if new_link.strip() else "FALSE")
+                load_data.clear()
                 st.success(f"Data {edit_target} berhasil diperbarui!")
                 time.sleep(1)
                 st.rerun()
@@ -329,6 +337,7 @@ if st.session_state.admin_logged_in:
                 ws_peserta, _ = get_sheets()
                 cell = ws_peserta.find(edit_target, in_column=1)
                 ws_peserta.update_cell(cell.row, 4, "FALSE")
+                load_data.clear()
                 st.success(f"Kunci wishlist {edit_target} dibuka (bisa isi ulang 1x).")
                 time.sleep(1)
                 st.rerun()
@@ -338,6 +347,7 @@ if st.session_state.admin_logged_in:
                 cell = ws_peserta.find(edit_target, in_column=1)
                 ws_peserta.update_cell(cell.row, 5, "FALSE")
                 ws_peserta.update_cell(cell.row, 6, "")
+                load_data.clear()
                 st.success(f"Status spin {edit_target} di-reset!")
                 time.sleep(1)
                 st.rerun()
@@ -350,6 +360,7 @@ if st.session_state.admin_logged_in:
         if new_participant.strip() and new_participant.strip() not in df["NAMA"].tolist():
             ws_peserta, _ = get_sheets()
             ws_peserta.append_row([new_participant.strip(), "", "", "FALSE", "FALSE", ""])
+            load_data.clear()
             st.success(f"{new_participant} ditambahkan!")
             time.sleep(1)
             st.rerun()
@@ -439,7 +450,6 @@ elif fase == "2":
             st.markdown(f"### Roda Undian untuk **{spinner}** 🎄")
             render_roulette_wheel(candidates, giftee_name, spin_duration=4.5)
             
-            # Tunggu animasi roda selesai baru munculkan kartu hasil
             with st.spinner("Mengacak nama Giftee-mu..."):
                 time.sleep(4.8)
                 
