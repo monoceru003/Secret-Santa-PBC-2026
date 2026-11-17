@@ -8,7 +8,7 @@ import streamlit.components.v1 as components
 
 # --- KONFIGURASI HALAMAN ---
 st.set_page_config(
-    page_title="Secret Santa Christmas Lunch",
+    page_title="Christmas Lunch PBC Veteran 2026",
     page_icon="🎄",
     layout="centered"
 )
@@ -367,7 +367,7 @@ st.markdown(f"""
 <div class="christmas-banner">
     <div class="christmas-ornaments">✨ 🎅 🎄 🦌 ✨</div>
     <h1>{event_title}</h1>
-    <div style="font-size: 0.92rem; opacity: 0.92; margin-top: 4px;">Gift From Secret Santa </div>
+    <div style="font-size: 0.92rem; opacity: 0.92; margin-top: 4px;">Gift From Secret Santa 🎁✨ </div>
 </div>
 <div class="budget-card">
     🎁 <strong>Ketentuan Budget Hadiah:</strong> {budget_info}
