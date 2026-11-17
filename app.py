@@ -608,7 +608,7 @@ elif fase == "2":
 
 # --- FOOTER AKSES KHUSUS ADMIN ---
 st.divider()
-st.markdown("<div style='text-align:center; color:#8C7F70; font-size:0.85rem;'>🎄 Merry Christmas & Happy Gift Hunting! 🎁</div>", unsafe_allow_html=True)
+st.markdown("<div style='text-align:center; color:#8C7F70; font-size:0.85rem;'>🎄 Merry Christmas PBC VETERAN ! 🎁</div>", unsafe_allow_html=True)
 col_empty, col_adm = st.columns([4, 1])
 with col_adm:
     if st.button("⚙️ Admin", type="tertiary"):
