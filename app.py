@@ -367,7 +367,7 @@ st.markdown(f"""
 <div class="christmas-banner">
     <div class="christmas-ornaments">✨ 🎅 🎄 🦌 ✨</div>
     <h1>{event_title}</h1>
-    <div style="font-size: 0.92rem; opacity: 0.92; margin-top: 4px;">Secret Santa Gift Exchange</div>
+    <div style="font-size: 0.92rem; opacity: 0.92; margin-top: 4px;">Gift From Secret Santa </div>
 </div>
 <div class="budget-card">
     🎁 <strong>Ketentuan Budget Hadiah:</strong> {budget_info}
