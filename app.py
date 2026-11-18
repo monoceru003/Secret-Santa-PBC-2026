@@ -9,7 +9,7 @@ import streamlit.components.v1 as components
 
 # --- KONFIGURASI HALAMAN ---
 st.set_page_config(
-    page_title="Secret Santa Christmas Lunch",
+    page_title="Christmas Lunch PBC Veteran 2026",
     page_icon="🎄",
     layout="centered"
 )
@@ -458,7 +458,7 @@ st.markdown(f"""
 <div class="christmas-banner">
     <div class="christmas-ornaments">✨ 🎅 🎄 🦌 ✨</div>
     <h1>{event_title}</h1>
-    <div style="font-size: 0.92rem; opacity: 0.92; margin-top: 4px;">Secret Santa Gift Exchange & Office Awards</div>
+    <div style="font-size: 0.92rem; opacity: 0.92; margin-top: 4px;">Gift From Secret Santa 🎁✨</div>
 </div>
 <div class="budget-card">
     🎁 <strong>Ketentuan Budget Hadiah:</strong> {budget_info}
@@ -790,7 +790,7 @@ elif fase == "2":
 
 # --- FOOTER AKSES KHUSUS ADMIN ---
 st.divider()
-st.markdown("<div style='text-align:center; color:#8C7F70; font-size:0.85rem;'>🎄 Merry Christmas & Happy Gift Hunting! 🎁</div>", unsafe_allow_html=True)
+st.markdown("<div style='text-align:center; color:#8C7F70; font-size:0.85rem;'>🎄 Merry Christmas PBC Veteran ! 🎁</div>", unsafe_allow_html=True)
 col_empty, col_adm = st.columns([4, 1])
 with col_adm:
     if st.button("⚙️ Admin", type="tertiary"):
