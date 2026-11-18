@@ -188,11 +188,9 @@ def get_sheets():
 def load_data():
     ws_peserta, ws_config, ws_voting = get_sheets()
     
-    # Load Config
     config_records = ws_config.get_all_records()
     config = {str(row["KEY"]).strip(): str(row["VALUE"]).strip() for row in config_records}
     
-    # Load Peserta
     peserta_records = ws_peserta.get_all_records()
     df = pd.DataFrame(peserta_records)
     cols_peserta = ["NAMA", "WISHLIST_LINK", "CATATAN", "WISHLIST_LOCKED", "SUDAH_SPIN", "GIFTEE", "SUDAH_VOTE"]
@@ -204,7 +202,6 @@ def load_data():
                 df[col] = ""
             df[col] = df[col].astype(str).str.strip()
 
-    # Load Voting
     voting_records = ws_voting.get_all_records()
     df_voting = pd.DataFrame(voting_records)
     cols_voting = ["TIMESTAMP", "VOTER", "MINISTER_OF_LAST_MINUTE", "WALKING_BATTERY_LOW",
@@ -418,6 +415,7 @@ def confirm_spin_dialog(nama):
     with col1:
         if st.button("🎲 Ya, Ini Saya — Putar!", type="primary", use_container_width=True):
             st.session_state.spin_confirmed_user = nama
+            st.session_state.spin_result = None
             st.rerun()
     with col2:
         if st.button("Bukan Saya (Kembali)", use_container_width=True):
@@ -429,6 +427,8 @@ if "selected_user" not in st.session_state:
     st.session_state.selected_user = None
 if "spin_confirmed_user" not in st.session_state:
     st.session_state.spin_confirmed_user = None
+if "spin_result" not in st.session_state:
+    st.session_state.spin_result = None
 if "voting_user" not in st.session_state:
     st.session_state.voting_user = None
 if "admin_logged_in" not in st.session_state:
@@ -563,7 +563,6 @@ if st.session_state.admin_logged_in:
                 ws_peserta.update_cell(cell.row, 5, "FALSE")
                 ws_peserta.update_cell(cell.row, 6, "")
                 ws_peserta.update_cell(cell.row, 7, "FALSE")
-                # Hapus baris vote lama jika ada
                 vote_cell = ws_voting.find(edit_target, in_column=2)
                 if vote_cell:
                     ws_voting.delete_rows(vote_cell.row)
@@ -690,25 +689,38 @@ elif fase == "2":
         spinner = st.session_state.spin_confirmed_user
         st.subheader("🎲 Tahap 2A: Undian Secret Santa", anchor=False)
         
-        taken_giftees = set(df[df["GIFTEE"] != ""]["GIFTEE"].tolist())
-        candidates = [n for n in df["NAMA"].tolist() if n not in taken_giftees and n != spinner]
+        # Jalankan spin HANYA 1 kali dan simpan ke session_state
+        if st.session_state.spin_result is None:
+            taken_giftees = set(df[df["GIFTEE"] != ""]["GIFTEE"].tolist())
+            candidates = [n for n in df["NAMA"].tolist() if n not in taken_giftees and n != spinner]
+            giftee_name, status = execute_spin(spinner)
+            st.session_state.spin_result = {
+                "giftee": giftee_name,
+                "status": status,
+                "candidates": candidates,
+                "animated": False
+            }
+
+        res = st.session_state.spin_result
         
-        giftee_name, status = execute_spin(spinner)
-        
-        if status == "ALREADY_SPUN":
+        if res["status"] == "ALREADY_SPUN":
             st.error(f"Undian atas nama **{spinner}** sudah pernah dilakukan. Hubungi **Andre & Regine** jika lupa hasilnya.")
-            st.session_state.spin_confirmed_user = None
-            st.session_state.selected_user = None
             if st.button("⬅ Kembali"):
+                st.session_state.spin_confirmed_user = None
+                st.session_state.spin_result = None
+                st.session_state.selected_user = None
                 st.rerun()
-        elif status == "OK":
+        elif res["status"] == "OK":
+            giftee_name = res["giftee"]
             st.markdown(f"### Roda Undian untuk **{spinner}** 🎄")
-            render_roulette_wheel(candidates, giftee_name, spin_duration=4.5)
+            render_roulette_wheel(res["candidates"], giftee_name, spin_duration=4.5)
             
-            with st.spinner("Mengacak nama Giftee-mu..."):
-                time.sleep(4.8)
+            if not res["animated"]:
+                with st.spinner("Mengacak nama Giftee-mu..."):
+                    time.sleep(4.8)
+                st.balloons()
+                st.session_state.spin_result["animated"] = True
                 
-            st.balloons()
             giftee_data = df[df["NAMA"] == giftee_name].iloc[0]
             
             st.markdown(f"""
@@ -730,6 +742,7 @@ elif fase == "2":
             
             if st.button("✅ Sudah Screenshot — Lanjut ke Voting Awarding ➔", type="primary", use_container_width=True):
                 st.session_state.spin_confirmed_user = None
+                st.session_state.spin_result = None
                 st.session_state.voting_user = spinner
                 st.rerun()
                 
