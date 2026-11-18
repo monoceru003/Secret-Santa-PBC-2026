@@ -4,11 +4,12 @@ import gspread
 from google.oauth2.service_account import Credentials
 import random
 import time
+from datetime import datetime
 import streamlit.components.v1 as components
 
 # --- KONFIGURASI HALAMAN ---
 st.set_page_config(
-    page_title="Christmas Lunch PBC Veteran 2026",
+    page_title="Secret Santa Christmas Lunch",
     page_icon="🎄",
     layout="centered"
 )
@@ -21,7 +22,7 @@ st.markdown("""
         background: linear-gradient(180deg, #FFFDF9 0%, #F7F2EA 100%);
     }
 
-    /* Animasi Salju Halus (Pointer-events: none agar tidak menghalangi klik) */
+    /* Animasi Salju Halus */
     @keyframes snowfall {
         0% { transform: translateY(-10vh) rotate(0deg); opacity: 0.85; }
         100% { transform: translateY(105vh) rotate(360deg); opacity: 0.2; }
@@ -86,6 +87,30 @@ st.markdown("""
         box-shadow: 0 6px 18px rgba(212, 175, 55, 0.2);
     }
 
+    /* Kartu Kategori Awarding */
+    .award-card {
+        background-color: #FFFFFF;
+        border: 1px solid #E6DEC8;
+        border-left: 5px solid #165B33;
+        border-radius: 12px;
+        padding: 14px 16px 10px 16px;
+        margin-top: 14px;
+        margin-bottom: 4px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.03);
+    }
+    .award-title {
+        font-size: 1.05rem;
+        font-weight: 700;
+        color: #9B1B1E;
+        margin-bottom: 3px;
+    }
+    .award-desc {
+        font-size: 0.84rem;
+        color: #66605B;
+        font-style: italic;
+        line-height: 1.35;
+    }
+
     /* Tombol Utama Merah Natal */
     div.stButton > button[kind="primary"] {
         background: linear-gradient(135deg, #C82327 0%, #9B1B1E 100%) !important;
@@ -111,6 +136,35 @@ st.markdown("""
 <div class="snowflake" style="left: 88%; animation-duration: 15s; animation-delay: 5s;">✨</div>
 """, unsafe_allow_html=True)
 
+# --- DAFTAR KATEGORI AWARDING ---
+AWARD_CATEGORIES = [
+    {
+        "key": "MINISTER_OF_LAST_MINUTE",
+        "title": "1. ⏰ Minister of Last Minute",
+        "desc": "Si paling kerjaan dan deadline di last minute"
+    },
+    {
+        "key": "WALKING_BATTERY_LOW",
+        "title": "2. 🪫 Walking Battery Low Award",
+        "desc": "Energi 1% kerja tapi kerjaan tetep beres somehow"
+    },
+    {
+        "key": "THE_WALKING_CALENDAR",
+        "title": "3. 📅 The Walking Calendar",
+        "desc": "Si paling tau semua jadwal kantor dll"
+    },
+    {
+        "key": "CEO_OF_OVERTHINKING",
+        "title": "4. 🤯 CEO of Overthinking",
+        "desc": "Si paling gopoh overthinking"
+    },
+    {
+        "key": "THE_WALKING_GREEN_FLAG",
+        "title": "5. 💚 The Walking Green Flag",
+        "desc": "Si paling green flag semuanya di kantor"
+    }
+]
+
 # --- KONEKSI GOOGLE SHEETS ---
 @st.cache_resource
 def init_connection():
@@ -128,11 +182,11 @@ def init_connection():
 def get_sheets():
     client = init_connection()
     sh = client.open_by_url(st.secrets["sheet_url"])
-    return sh.worksheet("PESERTA"), sh.worksheet("CONFIG")
+    return sh.worksheet("PESERTA"), sh.worksheet("CONFIG"), sh.worksheet("VOTING")
 
 @st.cache_data(ttl=15)
 def load_data():
-    ws_peserta, ws_config = get_sheets()
+    ws_peserta, ws_config, ws_voting = get_sheets()
     
     # Load Config
     config_records = ws_config.get_all_records()
@@ -141,22 +195,36 @@ def load_data():
     # Load Peserta
     peserta_records = ws_peserta.get_all_records()
     df = pd.DataFrame(peserta_records)
+    cols_peserta = ["NAMA", "WISHLIST_LINK", "CATATAN", "WISHLIST_LOCKED", "SUDAH_SPIN", "GIFTEE", "SUDAH_VOTE"]
     if df.empty:
-        df = pd.DataFrame(columns=["NAMA", "WISHLIST_LINK", "CATATAN", "WISHLIST_LOCKED", "SUDAH_SPIN", "GIFTEE"])
+        df = pd.DataFrame(columns=cols_peserta)
     else:
-        for col in ["NAMA", "WISHLIST_LINK", "CATATAN", "WISHLIST_LOCKED", "SUDAH_SPIN", "GIFTEE"]:
+        for col in cols_peserta:
             if col not in df.columns:
                 df[col] = ""
             df[col] = df[col].astype(str).str.strip()
+
+    # Load Voting
+    voting_records = ws_voting.get_all_records()
+    df_voting = pd.DataFrame(voting_records)
+    cols_voting = ["TIMESTAMP", "VOTER", "MINISTER_OF_LAST_MINUTE", "WALKING_BATTERY_LOW",
+                   "THE_WALKING_CALENDAR", "CEO_OF_OVERTHINKING", "THE_WALKING_GREEN_FLAG"]
+    if df_voting.empty:
+        df_voting = pd.DataFrame(columns=cols_voting)
+    else:
+        for col in cols_voting:
+            if col not in df_voting.columns:
+                df_voting[col] = ""
+            df_voting[col] = df_voting[col].astype(str).str.strip()
             
-    return df, config
+    return df, config, df_voting
 
 def is_true(val):
     return str(val).strip().upper() in ["TRUE", "1", "YES", "YA"]
 
 # --- FUNGSI UPDATE DATABASE ---
 def save_wishlist(nama, link, catatan):
-    ws_peserta, _ = get_sheets()
+    ws_peserta, _, _ = get_sheets()
     cell = ws_peserta.find(nama, in_column=1)
     if cell:
         row = cell.row
@@ -167,25 +235,20 @@ def save_wishlist(nama, link, catatan):
 
 def execute_spin(spinner_nama):
     load_data.clear()
-    ws_peserta, _ = get_sheets()
-    df, _ = load_data()
+    ws_peserta, _, _ = get_sheets()
+    df, _, _ = load_data()
     
-    # Cek ulang di server apakah spinner sudah pernah spin
     spinner_row_data = df[df["NAMA"] == spinner_nama].iloc[0]
     if is_true(spinner_row_data["SUDAH_SPIN"]):
         return None, "ALREADY_SPUN"
 
-    # Daftar orang yang sudah terpilih sebagai Giftee
     taken_giftees = set(df[df["GIFTEE"] != ""]["GIFTEE"].tolist())
-    
-    # Kandidat sah: belum terpilih & bukan diri sendiri
     all_names = df["NAMA"].tolist()
     available_targets = [n for n in all_names if n not in taken_giftees and n != spinner_nama]
     
     if not available_targets:
         return None, "NO_TARGETS"
 
-    # Penjaga 2 Orang Terakhir (Anti-Deadlock)
     unspun_players = df[~df["SUDAH_SPIN"].apply(is_true)]["NAMA"].tolist()
     remaining_unspun = [n for n in unspun_players if n != spinner_nama]
     
@@ -198,7 +261,6 @@ def execute_spin(spinner_nama):
     else:
         chosen_giftee = random.choice(available_targets)
 
-    # Kunci hasil di Google Sheets
     cell = ws_peserta.find(spinner_nama, in_column=1)
     if cell:
         row = cell.row
@@ -207,6 +269,32 @@ def execute_spin(spinner_nama):
     load_data.clear()
         
     return chosen_giftee, "OK"
+
+def save_voting(voter_nama, votes_dict):
+    load_data.clear()
+    ws_peserta, _, ws_voting = get_sheets()
+    df, _, _ = load_data()
+
+    voter_row = df[df["NAMA"] == voter_nama].iloc[0]
+    if is_true(voter_row["SUDAH_VOTE"]):
+        return False
+
+    timestamp_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    ws_voting.append_row([
+        timestamp_str,
+        voter_nama,
+        votes_dict["MINISTER_OF_LAST_MINUTE"],
+        votes_dict["WALKING_BATTERY_LOW"],
+        votes_dict["THE_WALKING_CALENDAR"],
+        votes_dict["CEO_OF_OVERTHINKING"],
+        votes_dict["THE_WALKING_GREEN_FLAG"]
+    ])
+
+    cell = ws_peserta.find(voter_nama, in_column=1)
+    if cell:
+        ws_peserta.update_cell(cell.row, 7, "TRUE")
+    load_data.clear()
+    return True
 
 # --- TRIK VISUAL RODA ROULETTE (HTML/CSS/JS) ---
 def render_roulette_wheel(candidates, winner, spin_duration=4.5):
@@ -322,8 +410,9 @@ def confirm_discard_dialog(nama):
 def confirm_spin_dialog(nama):
     st.markdown(f"Kamu masuk sebagai **{nama}**.")
     st.warning(
-        "Undian dan tampilan nama Giftee hanya muncul **1 kali** (pastikan segera di-screenshot setelah keluar). "
-        "Jika lupa atau ingin melihat ulang, silakan hubungi **Andre & Regine**."
+        "Undian dan tampilan nama Giftee hanya muncul **1 kali** (pastikan segera di-screenshot setelah keluar), "
+        "kemudian dilanjutkan dengan **Voting Awarding**. "
+        "Jika lupa atau kendala, silakan hubungi **Andre & Regine**."
     )
     col1, col2 = st.columns(2)
     with col1:
@@ -340,6 +429,8 @@ if "selected_user" not in st.session_state:
     st.session_state.selected_user = None
 if "spin_confirmed_user" not in st.session_state:
     st.session_state.spin_confirmed_user = None
+if "voting_user" not in st.session_state:
+    st.session_state.voting_user = None
 if "admin_logged_in" not in st.session_state:
     st.session_state.admin_logged_in = False
 if "show_admin_login" not in st.session_state:
@@ -353,9 +444,9 @@ if st.session_state.toast_msg:
 
 # --- LOAD DATA ---
 try:
-    df, config = load_data()
+    df, config, df_voting = load_data()
 except Exception as e:
-    st.error(f"Gagal terhubung ke Google Sheets. Pastikan Secrets dan Share sudah benar. Detail: {e}")
+    st.error(f"Gagal terhubung ke Google Sheets. Pastikan tab PESERTA, CONFIG, dan VOTING sudah sesuai. Detail: {e}")
     st.stop()
 
 event_title = config.get("EVENT_TITLE", "Christmas Lunch Secret Santa")
@@ -367,7 +458,7 @@ st.markdown(f"""
 <div class="christmas-banner">
     <div class="christmas-ornaments">✨ 🎅 🎄 🦌 ✨</div>
     <h1>{event_title}</h1>
-    <div style="font-size: 0.92rem; opacity: 0.92; margin-top: 4px;">Gift From Secret Santa 🎁✨ </div>
+    <div style="font-size: 0.92rem; opacity: 0.92; margin-top: 4px;">Secret Santa Gift Exchange & Office Awards</div>
 </div>
 <div class="budget-card">
     🎁 <strong>Ketentuan Budget Hadiah:</strong> {budget_info}
@@ -378,7 +469,7 @@ st.markdown(f"""
 # MODE ADMIN (KHUSUS ANDRE & REGINE)
 # ==========================================
 if st.session_state.admin_logged_in:
-    st.subheader("⚙️ Panel Kontrol (Andre & Regine)", anchor=False)
+    st.subheader("⚙️ Panel Kontrol Admin", anchor=False)
     col_top1, col_top2 = st.columns(2)
     with col_top1:
         if st.button("⬅ Keluar dari Mode Admin", use_container_width=True):
@@ -397,26 +488,44 @@ if st.session_state.admin_logged_in:
     col_f1, col_f2 = st.columns(2)
     with col_f1:
         if st.button("📝 Set Fase 1: Isi Wishlist", type="primary" if fase == "1" else "secondary", use_container_width=True):
-            _, ws_config = get_sheets()
+            _, ws_config, _ = get_sheets()
             cell = ws_config.find("FASE", in_column=1)
             if cell:
                 ws_config.update_cell(cell.row, 2, "1")
             load_data.clear()
             st.rerun()
     with col_f2:
-        if st.button("🎲 Set Fase 2: Buka Roulette", type="primary" if fase == "2" else "secondary", use_container_width=True):
-            _, ws_config = get_sheets()
+        if st.button("🎲 Set Fase 2: Roulette & Voting", type="primary" if fase == "2" else "secondary", use_container_width=True):
+            _, ws_config, _ = get_sheets()
             cell = ws_config.find("FASE", in_column=1)
             if cell:
                 ws_config.update_cell(cell.row, 2, "2")
             load_data.clear()
             st.rerun()
-    st.caption(f"Status saat ini: **Fase {fase}** ({'Pengisian Wishlist' if fase == '1' else 'Roulette Undian'})")
+    st.caption(f"Status saat ini: **Fase {fase}** ({'Pengisian Wishlist' if fase == '1' else 'Roulette Undian & Voting Awarding'})")
 
     st.divider()
     
-    # 2. Monitoring & Edit Peserta
-    st.markdown("### 2. Data Peserta, Wishlist & Giftee")
+    # 2. Rekap Klasemen Voting Awarding
+    st.markdown("### 2. 🏆 Klasemen Sementara Voting Awarding")
+    if df_voting.empty:
+        st.info("Belum ada suara voting yang masuk.")
+    else:
+        st.caption(f"Total suara masuk: **{len(df_voting)}** dari **{len(df)}** peserta.")
+        for cat in AWARD_CATEGORIES:
+            col_key = cat["key"]
+            counts = df_voting[col_key][df_voting[col_key] != ""].value_counts().reset_index()
+            counts.columns = ["Nama Kandidat", "Jumlah Suara"]
+            with st.expander(f"{cat['title']} ({cat['desc']})", expanded=True):
+                st.dataframe(counts, use_container_width=True, hide_index=True)
+
+        with st.expander("📋 Lihat Detail Siapa Memilih Siapa"):
+            st.dataframe(df_voting, use_container_width=True, hide_index=True)
+
+    st.divider()
+    
+    # 3. Monitoring & Edit Peserta
+    st.markdown("### 3. Data Peserta, Wishlist & Giftee")
     st.dataframe(df, use_container_width=True, hide_index=True)
     
     st.markdown("#### Edit Wishlist / Reset Status Peserta")
@@ -428,44 +537,49 @@ if st.session_state.admin_logged_in:
         
         c1, c2, c3 = st.columns(3)
         with c1:
-            if st.button("💾 Simpan Perubahan Admin", use_container_width=True):
-                ws_peserta, _ = get_sheets()
+            if st.button("💾 Simpan Perubahan", use_container_width=True):
+                ws_peserta, _, _ = get_sheets()
                 cell = ws_peserta.find(edit_target, in_column=1)
                 ws_peserta.update_cell(cell.row, 2, new_link)
                 ws_peserta.update_cell(cell.row, 3, new_catatan)
                 ws_peserta.update_cell(cell.row, 4, "TRUE" if new_link.strip() else "FALSE")
                 load_data.clear()
-                st.success(f"Data {edit_target} berhasil diperbarui!")
+                st.success(f"Data {edit_target} diperbarui!")
                 time.sleep(1)
                 st.rerun()
         with c2:
             if st.button("🔓 Buka Kunci Wishlist", use_container_width=True):
-                ws_peserta, _ = get_sheets()
+                ws_peserta, _, _ = get_sheets()
                 cell = ws_peserta.find(edit_target, in_column=1)
                 ws_peserta.update_cell(cell.row, 4, "FALSE")
                 load_data.clear()
-                st.success(f"Kunci wishlist {edit_target} dibuka (bisa isi ulang 1x).")
+                st.success(f"Kunci wishlist {edit_target} dibuka.")
                 time.sleep(1)
                 st.rerun()
         with c3:
-            if st.button("🔄 Reset Spin Undian", use_container_width=True):
-                ws_peserta, _ = get_sheets()
+            if st.button("🔄 Reset Spin & Vote", use_container_width=True):
+                ws_peserta, _, ws_voting = get_sheets()
                 cell = ws_peserta.find(edit_target, in_column=1)
                 ws_peserta.update_cell(cell.row, 5, "FALSE")
                 ws_peserta.update_cell(cell.row, 6, "")
+                ws_peserta.update_cell(cell.row, 7, "FALSE")
+                # Hapus baris vote lama jika ada
+                vote_cell = ws_voting.find(edit_target, in_column=2)
+                if vote_cell:
+                    ws_voting.delete_rows(vote_cell.row)
                 load_data.clear()
-                st.success(f"Status spin {edit_target} di-reset!")
+                st.success(f"Spin & Vote {edit_target} di-reset!")
                 time.sleep(1)
                 st.rerun()
 
     st.divider()
-    # 3. Tambah Peserta Baru
-    st.markdown("### 3. Tambah Peserta Baru")
+    # 4. Tambah Peserta Baru
+    st.markdown("### 4. Tambah Peserta Baru")
     new_participant = st.text_input("Nama Peserta Baru:")
     if st.button("➕ Tambah ke Daftar"):
         if new_participant.strip() and new_participant.strip() not in df["NAMA"].tolist():
-            ws_peserta, _ = get_sheets()
-            ws_peserta.append_row([new_participant.strip(), "", "", "FALSE", "FALSE", ""])
+            ws_peserta, _, _ = get_sheets()
+            ws_peserta.append_row([new_participant.strip(), "", "", "FALSE", "FALSE", "", "FALSE"])
             load_data.clear()
             st.success(f"{new_participant} ditambahkan!")
             time.sleep(1)
@@ -531,13 +645,50 @@ if fase == "1":
                         confirm_save_dialog(curr_user, link_input.strip(), catatan_input.strip())
 
 # ==========================================
-# FASE 2: ROULETTE UNDIAN
+# FASE 2: ROULETTE UNDIAN & VOTING AWARDING
 # ==========================================
 elif fase == "2":
-    st.subheader("🎲 Tahap 2: Undian Secret Santa", anchor=False)
-    
-    if st.session_state.spin_confirmed_user is not None:
+    # --- LANGKAH B: HALAMAN VOTING AWARDING (SETELAH ROULETTE) ---
+    if st.session_state.voting_user is not None:
+        voter = st.session_state.voting_user
+        st.subheader("🏆 Tahap 2B: Voting Office Awards", anchor=False)
+        st.markdown(f"Halo **{voter}**! Sebelum selesai, yuk pilih rekan kerjamu yang paling cocok untuk 5 kategori berikut (masing-masing 1 suara):")
+
+        candidate_options = ["-- Pilih Nama --"] + df["NAMA"].tolist()
+        selected_votes = {}
+
+        for cat in AWARD_CATEGORIES:
+            st.markdown(f"""
+            <div class="award-card">
+                <div class="award-title">{cat['title']}</div>
+                <div class="award-desc">{cat['desc']}</div>
+            </div>
+            """, unsafe_allow_html=True)
+            selected_votes[cat["key"]] = st.selectbox(
+                label=cat["title"],
+                options=candidate_options,
+                key=f"vote_{cat['key']}",
+                label_visibility="collapsed"
+            )
+
+        st.markdown("<br>", unsafe_allow_html=True)
+        if st.button("🗳️ Kirim Suara Voting & Selesai", type="primary", use_container_width=True):
+            if "-- Pilih Nama --" in selected_votes.values():
+                st.error("⚠️ Semua 5 kategori wajib dipilih terlebih dahulu sebelum mengirim suara!")
+            else:
+                success = save_voting(voter, selected_votes)
+                st.session_state.voting_user = None
+                st.session_state.selected_user = None
+                if success:
+                    st.session_state.toast_msg = f"🎉 Terima kasih {voter}! Undian & Voting Awarding kamu sudah tercatat."
+                else:
+                    st.session_state.toast_msg = f"Voting atas nama {voter} sudah tercatat sebelumnya."
+                st.rerun()
+
+    # --- LANGKAH A: PROSES SPIN ROULETTE & HASIL GIFTEE ---
+    elif st.session_state.spin_confirmed_user is not None:
         spinner = st.session_state.spin_confirmed_user
+        st.subheader("🎲 Tahap 2A: Undian Secret Santa", anchor=False)
         
         taken_giftees = set(df[df["GIFTEE"] != ""]["GIFTEE"].tolist())
         candidates = [n for n in df["NAMA"].tolist() if n not in taken_giftees and n != spinner]
@@ -575,40 +726,55 @@ elif fase == "2":
             if giftee_data['CATATAN']:
                 st.markdown(f"**📝 Catatan:** {giftee_data['CATATAN']}")
                 
-            st.warning("📸 **PENTING:** Segera **SCREENSHOT** halaman ini sekarang! Hasil hanya ditampilkan **1 kali** dan akan terkunci setelah ditutup.")
+            st.warning("📸 **PENTING:** Segera **SCREENSHOT** halaman ini sekarang! Hasil hanya ditampilkan **1 kali** sebelum lanjut ke tahap Voting.")
             
-            if st.button("✅ Selesai & Tutup (Sudah Screenshot)", type="primary", use_container_width=True):
+            if st.button("✅ Sudah Screenshot — Lanjut ke Voting Awarding ➔", type="primary", use_container_width=True):
                 st.session_state.spin_confirmed_user = None
-                st.session_state.selected_user = None
+                st.session_state.voting_user = spinner
                 st.rerun()
                 
+    # --- TAMPILAN AWAL PILIH NAMA FASE 2 ---
     else:
+        st.subheader("🎲 Tahap 2: Undian Secret Santa & Voting", anchor=False)
         options = ["-- Pilih Namamu --"]
         name_map = {}
         for _, row in df.iterrows():
             nama = row["NAMA"]
             spun = is_true(row["SUDAH_SPIN"])
-            label = f"{nama} — (🔒 Sudah undian)" if spun else f"{nama} — (Belum undian)"
+            voted = is_true(row["SUDAH_VOTE"])
+            if spun and voted:
+                label = f"{nama} — (🔒 Selesai Undian & Voting)"
+            elif spun and not voted:
+                label = f"{nama} — (⏳ Sudah Undian, Lanjut Voting)"
+            else:
+                label = f"{nama} — (Belum Undian & Voting)"
             options.append(label)
             name_map[label] = nama
             
-        choice = st.selectbox("Pilih namamu untuk memutar roulette:", options)
+        choice = st.selectbox("Pilih namamu untuk memulai:", options)
         if choice != "-- Pilih Namamu --":
             chosen_name = name_map[choice]
             user_row = df[df["NAMA"] == chosen_name].iloc[0]
+            spun = is_true(user_row["SUDAH_SPIN"])
+            voted = is_true(user_row["SUDAH_VOTE"])
             
-            if is_true(user_row["SUDAH_SPIN"]):
+            if spun and voted:
                 st.warning(
-                    f"Undian atas nama **{chosen_name}** sudah dilakukan dan hasil telah dikunci.\n\n"
+                    f"Undian dan voting atas nama **{chosen_name}** sudah selesai dan dikunci.\n\n"
                     "Jika lupa nama Giftee-mu atau belum sempat menyimpan link wishlist-nya, silakan hubungi **Andre & Regine**."
                 )
+            elif spun and not voted:
+                st.info(f"Kamu sudah melakukan undian Secret Santa, tetapi belum menyelesaikan **Voting Awarding**.")
+                if st.button(f"Lanjut Voting Awarding sebagai {chosen_name} ➔", type="primary", use_container_width=True):
+                    st.session_state.voting_user = chosen_name
+                    st.rerun()
             else:
                 if st.button(f"Lanjut Undian sebagai {chosen_name} ➔", type="primary", use_container_width=True):
                     confirm_spin_dialog(chosen_name)
 
 # --- FOOTER AKSES KHUSUS ADMIN ---
 st.divider()
-st.markdown("<div style='text-align:center; color:#8C7F70; font-size:0.85rem;'>🎄 Merry Christmas PBC VETERAN ! 🎁</div>", unsafe_allow_html=True)
+st.markdown("<div style='text-align:center; color:#8C7F70; font-size:0.85rem;'>🎄 Merry Christmas & Happy Gift Hunting! 🎁</div>", unsafe_allow_html=True)
 col_empty, col_adm = st.columns([4, 1])
 with col_adm:
     if st.button("⚙️ Admin", type="tertiary"):
